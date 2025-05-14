@@ -1,172 +1,177 @@
-const svg = d3.select("svg");
-const tooltip = d3.select(".tooltip");
-// Retrieve current SVG dimensions
-const { width, height } = svg.node().getBoundingClientRect();
+let abFilter = 25;
+const width = window.innerWidth;
+const height = window.innerHeight;
 
-// Layout partitions: left (scatter + donut), bottom-right (parallel coords)
-const leftWidth    = width * 0.4;
-const rightWidth   = width - leftWidth;
-const topHeight    = height * 0.5;
-const bottomHeight = height - topHeight;
+let scatterLeft = 0, scatterTop = 0;
+let scatterMargin = {top: 10, right: 30, bottom: 30, left: 60},
+    scatterWidth = 400 - scatterMargin.left - scatterMargin.right,
+    scatterHeight = 350 - scatterMargin.top - scatterMargin.bottom;
 
-const margin = { top: 40, right: 20, bottom: 40, left: 60 };
-const color  = d3.scaleOrdinal(d3.schemeCategory10);
+let distrLeft = 400, distrTop = 0;
+let distrMargin = {top: 10, right: 30, bottom: 30, left: 60},
+    distrWidth = 400 - distrMargin.left - distrMargin.right,
+    distrHeight = 350 - distrMargin.top - distrMargin.bottom;
 
-d3.csv("pokemon.csv").then(data => {
-  data.forEach(d => {
-    d.Attack      = +d.Attack;
-    d.Defense     = +d.Defense;
-    d.HP          = +d.HP;
-    d.Sp_Atk      = +d.Sp_Atk;
-    d.Sp_Def      = +d.Sp_Def;
-    d.Speed       = +d.Speed;
-    d.isLegendary = (d.isLegendary === 'True');
-  });
+let teamLeft = 0, teamTop = 400;
+let teamMargin = {top: 10, right: 30, bottom: 30, left: 60},
+    teamWidth = width - teamMargin.left - teamMargin.right,
+    teamHeight = height-450 - teamMargin.top - teamMargin.bottom;
 
-  const types = Array.from(new Set(data.map(d => d.Type_1))).sort();
-  color.domain(types);
+// plots
+d3.csv("players.csv").then(rawData =>{
+    console.log("rawData", rawData);
 
-  // --- Scatter Plot ---
-  const scatterG = svg.append("g").attr("transform", `translate(0,0)`);
-  const sx = d3.scaleLinear()
-    .domain(d3.extent(data, d => d.Attack)).nice()
-    .range([margin.left, leftWidth - margin.right]);
-  const sy = d3.scaleLinear()
-    .domain(d3.extent(data, d => d.Defense)).nice()
-    .range([topHeight - margin.bottom, margin.top]);
+    rawData.forEach(function(d){
+        d.AB = Number(d.AB);
+        d.H = Number(d.H);
+        d.salary = Number(d.salary);
+        d.SO = Number(d.SO);
+    });
 
-  scatterG.append("g")
-    .attr("transform", `translate(0,${topHeight - margin.bottom})`)
-    .call(d3.axisBottom(sx).ticks(6));
-  scatterG.append("g")
-    .attr("transform", `translate(${margin.left},0)`)
-    .call(d3.axisLeft(sy).ticks(6));
 
-  scatterG.append("text")
-    .attr("class", "axis-label")
-    .attr("x", leftWidth / 2)
-    .attr("y", topHeight - 5)
+    const filteredData = rawData.filter(d=>d.AB>abFilter);
+    const processedData = filteredData.map(d=>{
+                          return {
+                              "H_AB":d.H/d.AB,
+                              "SO_AB":d.SO/d.AB,
+                              "teamID":d.teamID,
+                          };
+    });
+    console.log("processedData", processedData);
+
+    //plot 1: Scatter Plot
+    const svg = d3.select("svg");
+
+    const g1 = svg.append("g")
+                .attr("width", scatterWidth + scatterMargin.left + scatterMargin.right)
+                .attr("height", scatterHeight + scatterMargin.top + scatterMargin.bottom)
+                .attr("transform", `translate(${scatterMargin.left}, ${scatterMargin.top})`);
+
+    // X label
+    g1.append("text")
+    .attr("x", scatterWidth / 2)
+    .attr("y", scatterHeight + 50)
+    .attr("font-size", "20px")
     .attr("text-anchor", "middle")
-    .text("Attack");
+    .text("H/AB");
 
-  scatterG.append("text")
-    .attr("class", "axis-label")
+
+    // Y label
+    g1.append("text")
+    .attr("x", -(scatterHeight / 2))
+    .attr("y", -40)
+    .attr("font-size", "20px")
+    .attr("text-anchor", "middle")
     .attr("transform", "rotate(-90)")
-    .attr("x", -topHeight / 2)
-    .attr("y", 15)
+    .text("SO/AB");
+
+    // X ticks
+    const x1 = d3.scaleLinear()
+    .domain([0, d3.max(processedData, d => d.H_AB)])
+    .range([0, scatterWidth]);
+
+    const xAxisCall = d3.axisBottom(x1)
+                        .ticks(7);
+    g1.append("g")
+    .attr("transform", `translate(0, ${scatterHeight})`)
+    .call(xAxisCall)
+    .selectAll("text")
+        .attr("y", "10")
+        .attr("x", "-5")
+        .attr("text-anchor", "end")
+        .attr("transform", "rotate(-40)");
+
+    // Y ticks
+    const y1 = d3.scaleLinear()
+    .domain([0, d3.max(processedData, d => d.SO_AB)])
+    .range([scatterHeight, 0]);
+
+    const yAxisCall = d3.axisLeft(y1)
+                        .ticks(13);
+    g1.append("g").call(yAxisCall);
+
+    // circles
+    const circles = g1.selectAll("circle").data(processedData);
+
+    circles.enter().append("circle")
+         .attr("cx", d => x1(d.H_AB))
+         .attr("cy", d => y1(d.SO_AB))
+         .attr("r", 5)
+         .attr("fill", "#69b3a2");
+
+    const g2 = svg.append("g")
+                .attr("width", distrWidth + distrMargin.left + distrMargin.right)
+                .attr("height", distrHeight + distrMargin.top + distrMargin.bottom)
+                .attr("transform", `translate(${distrLeft}, ${distrTop})`);
+
+    //plot 2: Bar Chart for Team Player Count
+
+    const teamCounts = processedData.reduce((s, { teamID }) => (s[teamID] = (s[teamID] || 0) + 1, s), {});
+    const teamData = Object.keys(teamCounts).map((key) => ({ teamID: key, count: teamCounts[key] }));
+    console.log("teamData", teamData);
+
+
+    const g3 = svg.append("g")
+                .attr("width", teamWidth + teamMargin.left + teamMargin.right)
+                .attr("height", teamHeight + teamMargin.top + teamMargin.bottom)
+                .attr("transform", `translate(${teamMargin.left}, ${teamTop})`);
+
+    // X label
+    g3.append("text")
+    .attr("x", teamWidth / 2)
+    .attr("y", teamHeight + 50)
+    .attr("font-size", "20px")
     .attr("text-anchor", "middle")
-    .text("Defense");
+    .text("Team");
 
-  scatterG.append("text")
-    .attr("class", "view-title")
-    .attr("x", leftWidth / 2)
-    .attr("y", margin.top - 20)
-    .text("Attack vs Defense by Primary Type");
 
-  scatterG.selectAll("circle")
-    .data(data)
-    .enter().append("circle")
-    .attr("cx", d => sx(d.Attack))
-    .attr("cy", d => sy(d.Defense))
-    .attr("r", 4)
-    .attr("fill", d => color(d.Type_1))
-    .on("mouseover", (e, d) => {
-      tooltip.transition().duration(200).style("opacity", 0.9);
-      tooltip.html(`<strong>${d.Name}</strong><br>${d.Type_1}<br>Atk: ${d.Attack}, Def: ${d.Defense}`)
-             .style("left", `${e.pageX + 5}px`)
-             .style("top", `${e.pageY - 28}px`);
-    })
-    .on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-
-  // --- Wrapped Scatter Legend ---
-  const legend = svg.append("g")
-    .attr("transform", `translate(${margin.left}, ${topHeight + 10})`);
-  const sw = 8, padX = 60, padY = 20, perRow = 5;
-  types.forEach((t, i) => {
-    const col = i % perRow,
-          row = Math.floor(i / perRow),
-          g   = legend.append("g").attr("transform", `translate(${col * padX}, ${row * padY})`);
-    g.append("rect").attr("width", sw).attr("height", sw).attr("fill", color(t));
-    g.append("text")
-      .attr("x", sw + 4)
-      .attr("y", sw - 1)
-      .attr("font-size", "10px")
-      .text(t);
-  });
-
-  // --- Donut Chart ---
-  const donutG = svg.append("g")
-    .attr("transform", `translate(${leftWidth/2}, ${topHeight + bottomHeight/2})`);
-  const legendData = d3.nest()
-    .key(d => d.isLegendary)
-    .rollup(v => v.length)
-    .entries(data);
-  const pie = d3.pie().value(d => d.value);
-  const arc = d3.arc().innerRadius(40).outerRadius(80);
-  const arcs = donutG.selectAll(".arc")
-    .data(pie(legendData))
-    .enter().append("g").attr("class", "arc");
-  arcs.append("path").attr("d", arc)
-    .attr("fill", d => d.data.key === 'true' ? "#ff7f0e" : "#1f77b4");
-  arcs.append("text")
-    .attr("transform", d => `translate(${arc.centroid(d)})`)
+    // Y label
+    g3.append("text")
+    .attr("x", -(teamHeight / 2))
+    .attr("y", -40)
+    .attr("font-size", "20px")
     .attr("text-anchor", "middle")
-    .attr("font-size", "12px")
-    .text(d => `${d.data.key==='true'?'Legendary':'Normal'} (${d.data.value})`);
-  donutG.append("text")
-    .attr("class", "view-title")
-    .attr("x", 0)
-    .attr("y", -100)
-    .text("Legendary vs Non-Legendary");
+    .attr("transform", "rotate(-90)")
+    .text("Number of players");
 
-  // --- Parallel Coordinates ---
-  const pw = rightWidth - margin.left - margin.right;
-  const ph = bottomHeight - margin.top - margin.bottom;
-  const parallelG = svg.append("g")
-    .attr("transform", `translate(${leftWidth + margin.left}, ${topHeight + margin.top})`);
+    // X ticks
+    const x2 = d3.scaleBand()
+    .domain(teamData.map(d => d.teamID))
+    .range([0, teamWidth])
+    .paddingInner(0.3)
+    .paddingOuter(0.2);
 
-  const dims = ["HP", "Attack", "Defense", "Sp_Atk", "Sp_Def", "Speed"];
-  const yScales = {};
-  dims.forEach(dim => {
-    yScales[dim] = d3.scaleLinear()
-      .domain(d3.extent(data, p => p[dim])).nice()
-      .range([ph, 0]);
-  });
+    const xAxisCall2 = d3.axisBottom(x2);
+    g3.append("g")
+    .attr("transform", `translate(0, ${teamHeight})`)
+    .call(xAxisCall2)
+    .selectAll("text")
+        .attr("y", "10")
+        .attr("x", "-5")
+        .attr("text-anchor", "end")
+        .attr("transform", "rotate(-40)");
 
-  const xScale = d3.scalePoint()
-    .domain(dims)
-    .range([0, pw]);
+    // Y ticks
+    const y2 = d3.scaleLinear()
+    .domain([0, d3.max(teamData, d => d.count)])
+    .range([teamHeight, 0])
+    .nice();
 
-  const lineGen = d3.line();
-  parallelG.selectAll("path")
-    .data(data)
-    .enter().append("path")
-    .attr("d", d => lineGen(dims.map(p => [xScale(p), yScales[p](d[p])])))
-    .attr("fill", "none")
-    .attr("stroke", d => color(d.Type_1))
-    .attr("stroke-opacity", 0.3);
+    const yAxisCall2 = d3.axisLeft(y2)
+                        .ticks(6);
+    g3.append("g").call(yAxisCall2);
 
-  dims.forEach(dim => {
-    const gAxis = parallelG.append("g")
-      .attr("transform", `translate(${xScale(dim)}, 0)`);
+    // bars
+    const bars = g3.selectAll("rect").data(teamData);
 
-    // draw the axis
-    gAxis.call(d3.axisLeft(yScales[dim]).ticks(4));
+    bars.enter().append("rect")
+    .attr("y", d => y2(d.count))
+    .attr("x", d => x2(d.teamID))
+    .attr("width", x2.bandwidth())
+    .attr("height", d => teamHeight - y2(d.count))
+    .attr("fill", "steelblue");
 
-    // label above axis line
-    gAxis.append("text")
-      .attr("class", "axis-label")
-      .attr("text-anchor", "middle")
-      .attr("x", 0)
-      .attr("y", -10)
-      .attr("fill", "#000")
-      .attr("font-size", "10px")
-      .text(dim);
-  });
 
-  parallelG.append("text")
-    .attr("class", "view-title")
-    .attr(`x`, pw / 2)
-    .attr(`y`, -margin.top / 2)
-    .text("Stat Profiles (Parallel Coordinates)");
+    }).catch(function(error){
+    console.log(error);
 });
