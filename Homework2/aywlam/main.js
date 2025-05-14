@@ -1,5 +1,20 @@
-const svg = d3.select("svg");
-const tooltip = d3.select(".tooltip");
+/*
+  d3 reference:
+
+
+  d3.select() for selecting DOM elements
+  d3.csv() for loading CSV data
+  d3.scaleLinear(), d3.scaleOrdinal(), and d3.scalePoint() for creating scales
+  d3.extent() for finding min/max values
+  d3.schemeCategory10 for color schemes
+  d3.axisBottom() / d3.axisLeft() for creating axes
+  d3.pie() and d3.arc() for creating pie/donut charts
+  d3.nest() for data aggregation
+  d3.line() for creating line generators
+ */
+
+const svg = d3.select("svg"); //main canvas
+const tooltip = d3.select(".tooltip");//tooltip for the scatter plot
 // Retrieve current SVG dimensions
 const { width, height } = svg.node().getBoundingClientRect();
 
@@ -31,6 +46,7 @@ d3.csv("pokemon.csv").then(data => {
   const sx = d3.scaleLinear()
     .domain(d3.extent(data, d => d.Attack)).nice()
     .range([margin.left, leftWidth - margin.right]);
+
   const sy = d3.scaleLinear()
     .domain(d3.extent(data, d => d.Defense)).nice()
     .range([topHeight - margin.bottom, margin.top]);
@@ -63,7 +79,7 @@ d3.csv("pokemon.csv").then(data => {
     .attr("y", margin.top - 20)
     .text("Attack vs Defense by Primary Type");
 
-  scatterG.selectAll("circle")
+    scatterG.selectAll("circle")
     .data(data)
     .enter().append("circle")
     .attr("cx", d => sx(d.Attack))
@@ -76,16 +92,18 @@ d3.csv("pokemon.csv").then(data => {
              .style("left", `${e.pageX + 5}px`)
              .style("top", `${e.pageY - 28}px`);
     })
-    .on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
 
-  // --- Wrapped Scatter Legend ---
+  // Legend for the Scatter Plot
   const legend = svg.append("g")
     .attr("transform", `translate(${margin.left}, ${topHeight + 10})`);
+
   const sw = 8, padX = 60, padY = 20, perRow = 5;
+
   types.forEach((t, i) => {
     const col = i % perRow,
           row = Math.floor(i / perRow),
           g   = legend.append("g").attr("transform", `translate(${col * padX}, ${row * padY})`);
+
     g.append("rect").attr("width", sw).attr("height", sw).attr("fill", color(t));
     g.append("text")
       .attr("x", sw + 4)
@@ -94,38 +112,43 @@ d3.csv("pokemon.csv").then(data => {
       .text(t);
   });
 
-  // --- Donut Chart ---
+  // Donut Chart
+  // this is to see the distribution of legendary vs non-legendary in percentages
   const donutG = svg.append("g")
     .attr("transform", `translate(${leftWidth/2}, ${topHeight + bottomHeight/2})`);
+
   const legendData = d3.nest()
     .key(d => d.isLegendary)
     .rollup(v => v.length)
     .entries(data);
+
   const pie = d3.pie().value(d => d.value);
   const arc = d3.arc().innerRadius(40).outerRadius(80);
-  const arcs = donutG.selectAll(".arc")
-    .data(pie(legendData))
-    .enter().append("g").attr("class", "arc");
+  const arcs = donutG.selectAll(".arc").data(pie(legendData)).enter().append("g").attr("class", "arc");
+
   arcs.append("path").attr("d", arc)
     .attr("fill", d => d.data.key === 'true' ? "#ff7f0e" : "#1f77b4");
+
   arcs.append("text")
     .attr("transform", d => `translate(${arc.centroid(d)})`)
     .attr("text-anchor", "middle")
     .attr("font-size", "12px")
     .text(d => `${d.data.key==='true'?'Legendary':'Normal'} (${d.data.value})`);
+
   donutG.append("text")
     .attr("class", "view-title")
     .attr("x", 0)
     .attr("y", -100)
     .text("Legendary vs Non-Legendary");
 
-  // --- Parallel Coordinates ---
+  // Parallel Coordinates
+  // this is to see the relationship between the stats of each pokemon in the dataset
   const pw = rightWidth - margin.left - margin.right;
   const ph = bottomHeight - margin.top - margin.bottom;
   const parallelG = svg.append("g")
     .attr("transform", `translate(${leftWidth + margin.left}, ${topHeight + margin.top})`);
 
-  const dims = ["HP", "Attack", "Defense", "Sp_Atk", "Sp_Def", "Speed"];
+  const dims = ["HP", "Attack", "Defense", "Atk", "Def", "Speed"];
   const yScales = {};
   dims.forEach(dim => {
     yScales[dim] = d3.scaleLinear()
